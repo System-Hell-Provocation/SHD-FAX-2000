@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SHP-FAX-2000: Der System-Transmitter</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background-color: #f0f0f0;
+            color: #333;
+            padding: 20px;
+            text-transform: uppercase;
+        }
+        .fax-container {
+            max-width: 800px;
+            margin: 0 auto;
+            border: 5px solid #000;
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 10px 10px 0 #ccc;
+        }
+        h1 {
+            border-bottom: 3px solid #000;
+            padding-bottom: 10px;
+            margin-top: 0;
+            font-size: 1.4em;
+        }
+        label {
+            display: block;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+        select, textarea, button, input {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            border: 2px solid #000;
+            box-sizing: border-box;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        textarea {
+            height: 150px;
+            resize: none;
+        }
+        button {
+            background-color: #cc0000;
+            color: white;
+            cursor: pointer;
+            margin-top: 20px;
+            font-weight: bold;
+            padding: 15px;
+        }
+        button:hover {
+            background-color: #ff0000;
+        }
+        .console {
+            margin-top: 25px;
+            border: 2px solid #000;
+            background-color: #000;
+            color: #00ff00;
+            height: 200px;
+            overflow-y: scroll;
+            padding: 10px;
+            font-size: 0.8em;
+            line-height: 1.4;
+        }
+        .console-status { color: #ffff00; }
+        .console-error { color: #ff0000; }
+        .console-success { color: #00ff00; }
+        .fax-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .fax-controls button {
+            flex: 1;
+            margin-top: 0;
+            padding: 10px;
+            font-size: 0.8em;
+        }
+        .system-status {
+            background-color: #000;
+            color: #00ff00;
+            padding: 10px;
+            margin: 10px 0;
+            border: 2px solid #000;
+        }
+        .fax-footer {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 0.7em;
+            color: #666; 
+            text-transform: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="fax-container">
+        <h1>SHP-FAX-2000: Der System-Transmitter (Modul-Connector) V2.0.0</h1>
+                
+        <div class="system-status">
+            > VERFÜGBARE SYSTEME: SHP-Z2000 [✔] | SHP-PKA-004 [✔] | SHP-FAX-2000 [✔]
+            > API-STATUS: <span id="api-status">AKTIV</span>
+        </div>
+
+        <div style="display: flex; gap: 20px;">
+            <div style="flex: 1;">
+                <label for="source-system">QUELL-SYSTEM</label>
+                <select id="source-system">
+                    <option value="SHP-Z2000">SHP-Z2000 (Triage-Modul)</option>
+                    <option value="SHP-PKA-004">SHP-PKA-004 (STASI-Modul)</option>
+                    <option value="MANUAL">MANUELLE EINGABE</option>
+                </select>
+
+                <label for="target-system">ZIEL-SYSTEM</label>
+                <select id="target-system">
+                    <option value="SHP-PKA-004">SHP-PKA-004 (STASI-Modul)</option>
+                    <option value="SHP-Z2000">SHP-Z2000 (Triage-Modul)</option>
+                    <option value="ARCHIV">ZENTRALARCHIV</option>
+                </select>
+
+                <label for="data-type">DATEN-TYP</label>
+                <select id="data-type">
+                    <option value="ANTRAWGS-DATEN">ANTRAWGS-DATEN (Bewerberprofil)</option>
+                    <option value="KONFORMITÄTS-REPORT">KONFORMITÄTS-REPORT (STASI-Analyse)</option>
+                    <option value="SYSTEM-LOG">SYSTEM-LOG (Fehlerprotokoll)</option>
+                    <option value="MANUAL">FREITEXT</option>
+                </select>
+            </div>
+
+            <div style="flex: 1;">
+                <div id="manual-input-section" style="display: none;">
+                    <label for="data-package">DATENPAKET (KLARTEXT, MAX. 500 ZEICHEN)</label>
+                    <textarea id="data-package" maxlength="500" placeholder="DATENPAKET EINGEBEN..."></textarea>
+                </div>
+
+                <div id="auto-data-section">
+                    <label>DATEN-VORSCHAU</label>
+                    <div style="border: 1px solid #ccc; padding: 10px; background-color: #f9f9f9; min-height: 100px; font-size: 0.8em; max-height: 150px; overflow-y: auto;" id="data-preview">
+                        WÄHLEN SIE QUELLSYSTEM UND DATENTYP
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="fax-controls">
+            <button onclick="generateDataPreview()">DATEN-VORSCHAU GENERIEREN</button>
+            <button onclick="sendFax()">FAX ÜBERMITTELN</button>
+            <button onclick="addToQueue()">IN WARTSCHLANGE</button>
+            <button onclick="processQueue()">WARTSCHLANGE ABARBEITEN</button>
+            <button onclick="clearFax()">SYSTEM RESET</button>
+        </div>
+
+        <div style="display: flex; gap: 20px; margin-top: 20px;">
+            <div style="flex: 1;">
+                <label>FAX-PROTOKOLL</label>
+                <div class="console" id="fax-console">
+                    > SHP-FAX-2000 SYSTEM HOCHGEFAHREN
+                    > MODEM: 9600 BAUD
+                    > API: BEREIT FÜR DATENTRANSFER
+                </div>
+            </div>
+            <div style="flex: 1;">
+                <label>WARTSCHLANGE (<span id="queue-count">0</span> Einträge)</label>
+                <div class="console" id="queue-console" style="height: 200px;">
+                    > KEINE AUFTRÄGE IN WARTSCHLANGE
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="fax-footer">
+        © 2025 SHP-SYSTEME | ZENTRALE MODUL-STEUERUNG
+    </div>
+
+    <script>
+        // === SHP FAX API - KERNMODUL ===
+        window.SHP_FAX_API = {
+            version: "2.0.0",
+            queue: [],
+            isProcessing: false,
+            
+            // Simuliert die asynchrone Übertragung eines Fax-Auftrags
+            _transmit: function(faxData) {
+                return new Promise((resolve, reject) => {
+                    const success = Math.random() > 0.2; // 80% Erfolg
+                    const transmissionTime = 2500 + Math.random() * 1500; // 2.5s - 4.0s
+
+                    // Finde den Index des Fax-Auftrags in der Warteschlange
+                    const index = this.queue.findIndex(item => item.id === faxData.id);
+                    if (index === -1) return reject({ error: "Fax ID nicht gefunden." });
+
+                    // Starte die Übertragung (Status-Update)
+                    this.queue[index].status = 'sending';
+                    this.updateQueueDisplay();
+                    log(`INITIIERE ÜBERTRAGUNG: ${faxData.source} → ${faxData.target} [ID: ${faxData.id}]`, 'status');
+
+                    setTimeout(() => {
+                        if (success) {
+                            this.queue[index].status = 'delivered';
+                            log(`VORGANG ABGESCHLOSSEN: ${faxData.id} ERFOLGREICH ÜBERMITTELT`, 'success');
+                            resolve({ success: true, id: faxData.id, message: 'Fax erfolgreich übermittelt' });
+                        } else {
+                            this.queue[index].status = 'failed';
+                            log(`VORGANG ABGEBROCHEN: ${faxData.id} LEITUNGSFEHLER`, 'error');
+                            reject({ success: false, id: faxData.id, error: 'Übertragungsfehler' });
+                        }
+                        this.updateQueueDisplay();
+                        this.isProcessing = false;
+                    }, transmissionTime);
+                });
+            },
+            
+            // API-Methode: Fügt Fax-Auftrag zur Warteschlange hinzu (Status: queued oder pending)
+            sendFax: function(source, target, data, type, status = 'queued') {
+                const faxId = 'FAX-' + Date.now();
+                const faxData = {
+                    id: faxId,
+                    source: source,
+                    target: target,
+                    data: data,
+                    type: type,
+                    timestamp: new Date().toISOString(),
+                    status: status 
+                };
+                
+                this.queue.push(faxData);
+                this.updateQueueDisplay();
+                return faxData; // Gibt den erstellten Fax-Auftrag zurück
+            },
+            
+            // API-Methode: Gibt alle empfangenen Faxe für ein bestimmtes Modul zurück
+            receiveFax: function(targetModule) {
+                return this.queue.filter(fax => 
+                    fax.target === targetModule && fax.status === 'delivered'
+                );
+            },
+            
+            // API-Methode: Leert die gesamte Warteschlange
+            clearQueue: function() {
+                this.queue = [];
+                this.updateQueueDisplay();
+                log('API: WARTSCHLANGE VOLLSTÄNDIG GELÖSCHT');
+            },
+            
+            // API-Methode: Aktualisiert die Anzeige der Warteschlange
+            updateQueueDisplay: function() {
+                const queueConsole = document.getElementById('queue-console');
+                const queueCount = document.getElementById('queue-count');
+                
+                queueCount.textContent = this.queue.length;
+                queueConsole.innerHTML = '';
+                
+                if (this.queue.length === 0) {
+                    queueConsole.innerHTML = '> KEINE AUFTRÄGE IN WARTSCHLANGE';
+                    return;
+                }
+                
+                this.queue.forEach((fax, index) => {
+                    const statusColor = fax.status === 'delivered' ? '#00ff00' : 
+                                        fax.status === 'failed' ? '#ff0000' : 
+                                        fax.status === 'sending' ? '#ff8800' : '#ffff00';
+                    queueConsole.innerHTML += 
+                        `> [${index+1}] ${fax.source}→${fax.target} (${fax.type}) ` +
+                        `<span style="color: ${statusColor}">[${fax.status}]</span><br>`;
+                });
+                queueConsole.scrollTop = queueConsole.scrollHeight;
+            }
+        };
+
+        // === FAX-SYSTEM VARIABLEN ===
+        const consoleOutput = document.getElementById('fax-console');
+        const sourceSystem = document.getElementById('source-system');
+        const targetSystem = document.getElementById('target-system');
+        const dataType = document.getElementById('data-type');
+        const dataPackage = document.getElementById('data-package');
+        const manualInputSection = document.getElementById('manual-input-section');
+        const autoDataSection = document.getElementById('auto-data-section');
+        const dataPreview = document.getElementById('data-preview');
+        
+        // Temporäre Speicherung der generierten Daten
+        window.currentFaxData = '';
+
+        // === EVENT LISTENER ===
+        dataType.addEventListener('change', toggleManualInput);
+        sourceSystem.addEventListener('change', handleSourceChange);
+
+        function toggleManualInput() {
+            if (dataType.value === 'MANUAL') {
+                manualInputSection.style.display = 'block';
+                autoDataSection.style.display = 'none';
+            } else {
+                manualInputSection.style.display = 'none';
+                autoDataSection.style.display = 'block';
+            }
+        }
+
+        function handleSourceChange() {
+            if (sourceSystem.value === 'MANUAL') {
+                dataType.value = 'MANUAL';
+                toggleManualInput();
+            }
+        }
+
+        // === PROTOKOLL-FUNKTIONEN ===
+        function log(message, type = 'status') {
+            const p = document.createElement('div');
+            if (type === 'status') p.className = 'console-status';
+            if (type === 'error') p.className = 'console-error';
+            if (type === 'success') p.className = 'console-success';
+            
+            p.textContent = `> ${new Date().toLocaleTimeString()} ${message}`;
+            consoleOutput.appendChild(p);
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+
+        // === DATEN-GENERIERUNG (Unverändert) ===
+        function generateDataPreview() {
+            const source = sourceSystem.value;
+            const type = dataType.value;
+            
+            if (source === 'MANUAL') {
+                dataPreview.textContent = dataPackage.value || 'KEINE MANUELLEN DATEN';
+                window.currentFaxData = dataPackage.value.trim();
+                return;
+            }
+
+            let previewData = '';
+            switch(type) {
+                case 'ANTRAWGS-DATEN':
+                    previewData = generateApplicantData();
+                    break;
+                case 'KONFORMITÄTS-REPORT':
+                    previewData = generateConformityReport();
+                    break;
+                case 'SYSTEM-LOG':
+                    previewData = generateSystemLog();
+                    break;
+                default:
+                    previewData = 'UNBEKANNTER DATENTYP';
+            }
+
+            dataPreview.textContent = previewData;
+            window.currentFaxData = previewData;
+        }
+
+        function generateApplicantData() {
+            const applicants = [
+                "ANTRAWGSDATEN:\nNAME: Ayman Al-Masri\nNATIONALITÄT: Syrien\nSCORE: 87%",
+                "ANTRAWGSDATEN:\nNAME: Kevin Müller\nNATIONALITÄT: Deutschland\nSCORE: 15%",
+                "ANTRAWGSDATEN:\nNAME: Fatima Öztürk\nNATIONALITÄT: Türkei\nSCORE: 92%"
+            ];
+            return applicants[Math.floor(Math.random() * applicants.length)];
+        }
+
+        function generateConformityReport() {
+            const reports = [
+                "KONFORMITÄTS-REPORT: AF 75% | STATUS: SYSTEMALARM",
+                "KONFORMITÄTS-REPORT: AF 15% | STATUS: KONFORM", 
+                "KONFORMITÄTS-REPORT: AF 45% | STATUS: ÜBERWACHUNG"
+            ];
+            return reports[Math.floor(Math.random() * reports.length)];
+        }
+
+        function generateSystemLog() {
+            return "SYSTEM-LOG: " + new Date().toLocaleString() + " - MODUL AKTIV";
+        }
+
+        function getCurrentData() {
+            if (sourceSystem.value === 'MANUAL') {
+                return dataPackage.value.trim();
+            } else {
+                return window.currentFaxData || '';
+            }
+        }
+
+        // === FAX-STEUERUNGSFUNKTIONEN ===
+        
+        // Button: FAX ÜBERMITTELN (Sofortiger Sendeversuch)
+        function sendFax() {
+            if (SHP_FAX_API.isProcessing) {
+                log('SYSTEM BESCHÄFTIGT: ÜBERTRAGUNG LÄUFT BEREITS', 'error');
+                return;
+            }
+            
+            const data = getCurrentData();
+            if (data.length < 5) {
+                log('FEHLER: KEINE DATEN VORHANDEN', 'error');
+                return;
+            }
+
+            const faxData = SHP_FAX_API.sendFax(sourceSystem.value, targetSystem.value, data, dataType.value, 'pending');
+            SHP_FAX_API.isProcessing = true;
+            SHP_FAX_API._transmit(faxData)
+                .then(() => SHP_FAX_API.isProcessing = false)
+                .catch(() => SHP_FAX_API.isProcessing = false);
+        }
+
+        // Button: IN WARTSCHLANGE (Fügt als "queued" hinzu)
+        function addToQueue() {
+            const data = getCurrentData();
+            if (data.length < 5) {
+                log('FEHLER: KEINE DATEN FÜR WARTSCHLANGE', 'error');
+                return;
+            }
+
+            SHP_FAX_API.sendFax(sourceSystem.value, targetSystem.value, data, dataType.value, 'queued');
+            log(`AUFTRAG IN WARTSCHLANGE: ${sourceSystem.value} → ${targetSystem.value}`);
+        }
+
+        // Button: WARTSCHLANGE ABARBEITEN (Verarbeitet queued Items sequenziell)
+        function processQueue() {
+            const queuedItems = SHP_FAX_API.queue.filter(fax => fax.status === 'queued');
+            
+            if (queuedItems.length === 0) {
+                log('KEINE NEUEN AUFTRÄGE IN WARTSCHLANGE', 'error');
+                return;
+            }
+            if (SHP_FAX_API.isProcessing) {
+                log('SYSTEM BESCHÄFTIGT: WARTSCHLANGEN-PROZESS LÄUFT BEREITS', 'error');
+                return;
+            }
+            
+            log(`STARTE SEQUENZIELLE ABARBEITUNG VON ${queuedItems.length} AUFTRÄGEN`);
+            SHP_FAX_API.isProcessing = true;
+
+            const processNext = (index) => {
+                if (index >= queuedItems.length) {
+                    log('WARTSCHLANGEN-PROZESS ABGESCHLOSSEN', 'success');
+                    SHP_FAX_API.isProcessing = false;
+                    return;
+                }
+
+                const currentFax = queuedItems[index];
+                SHP_FAX_API._transmit(currentFax)
+                    .finally(() => {
+                        // Verzögerung vor dem nächsten Auftrag, um die Simulation zu veranschaulichen
+                        setTimeout(() => processNext(index + 1), 1000); 
+                    });
+            };
+
+            processNext(0);
+        }
+
+        // Button: SYSTEM RESET (Ruft API-Funktion auf)
+        function clearFax() {
+            SHP_FAX_API.clearQueue();
+            consoleOutput.innerHTML = '> SYSTEM RESET DURCHGEFÜHRT\n> BEREIT FÜR NEUE ÜBERTRAGUNG';
+            dataPreview.textContent = 'WÄHLEN SIE QUELLSYSTEM UND DATENTYP';
+            dataPackage.value = '';
+        }
+
+        // === INITIALISIERUNG ===
+        document.addEventListener('DOMContentLoaded', () => {
+            log('SHP-FAX-2000 API INITIALISIERT');
+            log('VERSION ' + SHP_FAX_API.version + ' HOCHGEFAHREN');
+        });
+    </script>
+</body>
+</html>
