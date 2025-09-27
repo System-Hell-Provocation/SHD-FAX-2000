@@ -1,5 +1,6 @@
 # SHP-FAX-2000: Der System-Transmitter (Modul-Connector)
-#### Dev Status
+> Logik lernen mit Spass und noch deutsche Bürokratie auf den Korn nehmen!
+###### Deutschland ohne FAX? 😆
 
 ## Projektbeschreibung (Interne technische Übersicht)
 
